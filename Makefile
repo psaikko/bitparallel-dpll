@@ -1,2 +1,2 @@
 solver: main.cpp
-	g++ -ggdb -Og main.cpp -o solver
+	g++ -O3 main.cpp -o solver
