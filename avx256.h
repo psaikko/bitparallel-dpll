@@ -1,5 +1,6 @@
 #include <immintrin.h>
 #include <cinttypes>
+#include "bitvector_helpers.h"
 
 struct avx256i;
 
@@ -74,9 +75,10 @@ struct avx256i {
     }
 
     val = _mm256_loadu_si256((__m256i *) tmp);
+    return *this;
   }
 
-  operator bool() const {
+  explicit operator bool() const {
     return !_mm256_testz_si256(val, avx256_ones);
   }
 
@@ -87,15 +89,19 @@ struct avx256i {
 
 };
 
-inline avx256i zero() {
+template<>
+inline avx256i zero<avx256i>() {
   return avx256_zero;
 }
 
-inline avx256i ones() {
+template<>
+inline avx256i ones<avx256i>() {
   return avx256_ones;
 }
 
-inline avx256i single_bit_mask(const unsigned &index) {
+template<>
+inline avx256i single_bit_mask<avx256i>(const unsigned &index) {
+
   uint64_t mask[4];
 
   for (unsigned i = 0; i < 4; ++i) 
@@ -111,7 +117,12 @@ inline avx256i single_bit_mask(const unsigned &index) {
   return avx256_mask;
 }
 
-void print_bitmask(avx256i m) {
+/*
+template<>
+void print_bitmask<avx256i>(avx256i m) {
+
+  printf("print avx bitmask\n");
+
   __uint128_t tmp[2];
   _mm256_storeu_si256((__m256i *)tmp, m.val);
 
@@ -130,4 +141,4 @@ void print_bitmask(avx256i m) {
   }
 
   printf("\n");
-}
+}*/

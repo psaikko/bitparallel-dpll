@@ -8,6 +8,7 @@
 #include <cmath>
 
 #include "avx256.h"
+#include "bitvector_helpers.h"
 
 #define SAT 1
 #define UNSAT 0
@@ -27,6 +28,7 @@
 
 typedef int lit;
 typedef unsigned int var;
+
 typedef avx256i assign_t;
 
 inline var VAR(lit l) { return std::abs(l); }
@@ -40,37 +42,11 @@ unsigned n_clauses, n_vars;
 lit ** clauses;
 int * clauses_len;
 
-template<typename T> 
-inline T single_bit_mask(const unsigned &i) {
-  return T(1) << i;
-}
-
-template<typename T> 
-inline T zero() {
-  return 0;
-}
-
-template<typename T> 
-inline T ones() {
-  return ~0;
-}
-
-assign_t all_true = ones();
-assign_t all_false = zero();
+assign_t all_true = ones<assign_t>();
+assign_t all_false = zero<assign_t>();
 
 assign_t * assign_bitmasks;
 unsigned n_bitmasks;
-
-template<typename T>
-void print_bitmask(T m) {
-  for (int j = 0; j < sizeof(T)*8; ++j) {
-    if (m & single_bit_mask(j))
-      printf("1");
-    else
-      printf("0");
-  }
-  printf("\n");
-}
 
 void init_bitmasks() {
   /*
@@ -81,19 +57,26 @@ void init_bitmasks() {
     for arbitrary-length assign_t
   */
   n_bitmasks = log2(sizeof(assign_t) * 8);
+
   if (sizeof(assign_t) >= 16) {
     assign_bitmasks = (assign_t *) aligned_alloc(sizeof(assign_t), sizeof(assign_t) * n_bitmasks);
   } else {
     assign_bitmasks = (assign_t *) malloc( sizeof(assign_t) * n_bitmasks);
   }
 
-  assign_t m = zero();
+  assign_t m = zero<assign_t>();
 
   int shift = sizeof(assign_t) * 8 / 2;
   int i = 0;
   
   while (shift > 0) {
-    m ^= (~m << shift);
+    assign_t t1 = ~m;
+    assert(t1);
+    assign_t t2 = t1 << shift;
+    assert(t2);
+    m = m ^ t2;
+    //m ^= ((~m) << shift);
+    assert(m);
     assign_bitmasks[i++] = m;
     shift /= 2;
   }
@@ -128,7 +111,7 @@ void parse(const char * file) {
 
   lit l;
   bool ok = true;
-  int read_clauses = 0;
+  unsigned read_clauses = 0;
   int read_lits = 0;
 
   lit * clause_buffer = (lit *) malloc(sizeof(lit) * n_vars);
@@ -158,7 +141,7 @@ void parse(const char * file) {
 
   printf("c read %d clauses\n", read_clauses);
 
-  for (int i = 0; i < n_clauses; ++i) {
+  for (unsigned i = 0; i < n_clauses; ++i) {
     printf("c");
     print_clause(clauses[i], clauses_len[i]);
   }
@@ -171,13 +154,13 @@ assign_t * var_assignment; // bitvalues of var assignments
 assign_t * var_undef;      // which bits of var assignment are undefined
 
 void print_assignment() {
-  for (int i = 1; i <= n_vars; ++i) {
+  for (unsigned i = 1; i <= n_vars; ++i) {
     printf("%d val = ", i);
-    for (int j = 0; j < sizeof(assign_t)*8; ++j) {
-      if (var_undef[i] & single_bit_mask(j)) {
+    for (size_t j = 0; j < sizeof(assign_t)*8; ++j) {
+      if (var_undef[i] & single_bit_mask<assign_t>(j)) {
         printf(".");
       } else {
-        if (var_assignment[i] & single_bit_mask(j)) {
+        if (var_assignment[i] & single_bit_mask<assign_t>(j)) {
           printf("1");
         } else {
           printf("0");  
@@ -211,7 +194,6 @@ int propagate() {
   var v;
   unsigned unset_lits;
   unsigned total_unset_lits;
-  int unset_j;
   unsigned propagations; 
 
   assign_t sat_mask, clause_sat_mask, lit_sat_mask;
@@ -223,26 +205,25 @@ int propagate() {
   sat_mask = all_true;
   propagations = 0;
   total_unset_lits = 0;
-  incomplete_assignment_mask = zero();
+  incomplete_assignment_mask = zero<assign_t>();
 
   DPRINT("propagating\n");
   DPRINT_ASSIGNMENT();
 
   // todo: do this more efficiently
-  for (int i = 1; i <= n_vars; ++i) 
+  for (unsigned i = 1; i <= n_vars; ++i) 
     incomplete_assignment_mask |= var_undef[i];
 
-  for (int i = 0; i < n_clauses; ++i) {
+  for (unsigned i = 0; i < n_clauses; ++i) {
 
     DPRINT("c clause");
     DPRINT_CLAUSE(clauses[i], clauses_len[i]);
 
-    undef_mask_1 = zero();
-    undef_mask_2 = zero();
+    undef_mask_1 = zero<assign_t>();
+    undef_mask_2 = zero<assign_t>();
 
     clause_sat_mask = all_false;    
     unset_lits = 0;
-    unset_j = -1;
 
     for (int j = 0; j < clauses_len[i]; ++j) {
       l = clauses[i][j];
@@ -261,7 +242,6 @@ int propagate() {
           DPRINT("UNDEF on all\n");
           goto next_clause;
         }
-        unset_j = j;
       } else {
         lit_sat_mask = (l > 0 ? var_assignment[v] : bitnot(var_assignment[v]));
         clause_sat_mask |= (lit_sat_mask & bitnot(var_undef[v])); 
@@ -302,7 +282,7 @@ int propagate() {
     propagate_mask = undef_mask_1 & bitnot(undef_mask_2) & bitnot(clause_sat_mask);
 
     if (propagate_mask) {
-      DPRINT("propagate clause on %d bits\n", __builtin_popcount(propagate_mask));
+//      DPRINT("propagate clause on %d bits\n", __builtin_popcount(propagate_mask));
 
       for (int j = 0; j < clauses_len[i]; ++j) {
         l = clauses[i][j];
@@ -351,11 +331,11 @@ int propagate() {
     DPRINT_BITMASK(incomplete_assignment_mask);
 
     unsigned i = 1;
-    sat_bit_position = single_bit_mask(i);
+    sat_bit_position = single_bit_mask<assign_t>(i);
 
     // find first bit with solution
     while (!(sat_mask & sat_bit_position)) {
-      sat_bit_position = single_bit_mask(i++);
+      sat_bit_position = single_bit_mask<assign_t>(i++);
     }
     
     DPRINT_ASSIGNMENT();
@@ -392,7 +372,7 @@ void make_assignment(var v, assign_t assignment, assign_t mask) {
 void backtrack(int to_depth) {
   while (trail_head >= 0 && trail_depth[trail_head] > to_depth) {
     var v = trail_var[trail_head];
-    assign_t unassign_val = trail_val[trail_head];
+    //assign_t unassign_val = trail_val[trail_head];
     assign_t unassign_mask = trail_mask[trail_head];
     
     var_undef[v] |= unassign_mask;    // set bits as undefined
@@ -461,13 +441,13 @@ void dpll() {
     var_undef      = (assign_t *) malloc(sizeof(assign_t) * (n_vars+1));
   }
 
-  std::fill(var_assignment, var_assignment+n_vars+1, zero());
+  std::fill(var_assignment, var_assignment+n_vars+1, zero<assign_t>());
   //for (unsigned i = 0; i <= n_vars + 1; ++i)
-  //  var_assignment[i] = zero();
+  //  var_assignment[i] = zero<assign_t>();
 
-  std::fill(var_undef, var_undef+n_vars+1, ones());
+  std::fill(var_undef, var_undef+n_vars+1, ones<assign_t>());
   //for (unsigned i = 0; i <= n_vars + 1; ++i)
-  //  var_undef[i] = ones();
+  //  var_undef[i] = ones<assign_t>();
 
   // init trail
   trail_var = (var *) malloc(sizeof(var) * n_vars * sizeof(assign_t) * 8);
@@ -511,12 +491,12 @@ int main(int argv, char ** argc) {
 
   init_bitmasks();
 
-  for (int i = 0; i < n_bitmasks; ++i) {
+  for (unsigned i = 0; i < n_bitmasks; ++i) {
     printf("c ");
     print_bitmask(assign_bitmasks[i]);
   }
 
-  printf("bits: %d\n", sizeof(assign_t)*8);
+  printf("bits: %lu\n", sizeof(assign_t)*8);
 
   if (argv == 2) {
     parse( argc[1] );
