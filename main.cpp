@@ -58,11 +58,7 @@ void init_bitmasks() {
   */
   n_bitmasks = log2(sizeof(assign_t) * 8);
 
-  if (sizeof(assign_t) >= 16) {
-    assign_bitmasks = (assign_t *) aligned_alloc(sizeof(assign_t), sizeof(assign_t) * n_bitmasks);
-  } else {
-    assign_bitmasks = (assign_t *) malloc( sizeof(assign_t) * n_bitmasks);
-  }
+  assign_bitmasks = assign_alloc<assign_t>(n_bitmasks);
 
   assign_t m = zero<assign_t>();
 
@@ -276,7 +272,7 @@ int propagate() {
     propagate_mask = undef_mask_1 & bitnot(undef_mask_2) & bitnot(clause_sat_mask);
 
     if (propagate_mask) {
-      DPRINT("propagate clause on %d bits\n", __builtin_popcount(propagate_mask));
+      DPRINT("propagate clause on %d bits\n", popcount<assign_t>(propagate_mask));
 
       for (int j = 0; j < clauses_len[i]; ++j) {
         l = clauses[i][j];
@@ -427,13 +423,8 @@ void dpll() {
 
   // init assignment
 
-  if (sizeof(assign_t) >= 16) {
-    var_assignment = (assign_t *) aligned_alloc(sizeof(assign_t), sizeof(assign_t) * (n_vars+1));
-    var_undef      = (assign_t *) aligned_alloc(sizeof(assign_t), sizeof(assign_t) * (n_vars+1));
-  } else {
-    var_assignment = (assign_t *) malloc(sizeof(assign_t) * (n_vars+1));
-    var_undef      = (assign_t *) malloc(sizeof(assign_t) * (n_vars+1));
-  }
+  var_assignment = assign_alloc<assign_t>(n_vars+1);
+  var_undef      = assign_alloc<assign_t>(n_vars+1);
 
   std::fill(var_assignment, var_assignment+n_vars+1, zero<assign_t>());
   //for (unsigned i = 0; i <= n_vars + 1; ++i)
@@ -446,13 +437,9 @@ void dpll() {
   // init trail
   trail_var = (var *) malloc(sizeof(var) * n_vars * sizeof(assign_t) * 8);
 
-  if (sizeof(assign_t) >= 16) {
-    trail_val  = (assign_t *) aligned_alloc(sizeof(assign_t), sizeof(assign_t) * n_vars * sizeof(assign_t) * 8);
-    trail_mask = (assign_t *) aligned_alloc(sizeof(assign_t), sizeof(assign_t) * n_vars * sizeof(assign_t) * 8);
-  } else {
-    trail_val  = (assign_t *) malloc(sizeof(assign_t) * n_vars * sizeof(assign_t) * 8);
-    trail_mask = (assign_t *) malloc(sizeof(assign_t) * n_vars * sizeof(assign_t) * 8);
-  }
+  trail_mask = assign_alloc<assign_t>(n_vars * sizeof(assign_t) * 8);
+  trail_val  = assign_alloc<assign_t>(sizeof(assign_t) * n_vars * sizeof(assign_t) * 8);
+
 
   if (!trail_val || !trail_mask || !var_undef || !var_assignment) {
     printf("adsfasdf\n");

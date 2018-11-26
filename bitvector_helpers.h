@@ -27,3 +27,23 @@ void print_bitmask(T m) {
   }
   printf("\n");
 }
+
+template<typename T>
+unsigned popcount(T v) {
+  return __builtin_popcount(v);
+}
+
+template<>
+unsigned popcount(uint64_t v) {
+  return __builtin_popcountll(v);
+}
+
+template<>
+unsigned popcount(uint32_t v) {
+  return __builtin_popcountl(v);
+}
+
+template<typename T>
+T* assign_alloc(size_t count) {
+  return (T*) malloc(count * sizeof(T));
+}

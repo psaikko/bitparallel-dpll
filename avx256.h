@@ -117,6 +117,22 @@ inline avx256i single_bit_mask<avx256i>(const unsigned &index) {
   return avx256_mask;
 }
 
+template<>
+unsigned popcount(avx256i v) {
+  uint64_t tmp[4];
+  _mm256_storeu_si256((__m256i *)tmp, v.val);
+  return __builtin_popcountll(tmp[0]) + \
+         __builtin_popcountll(tmp[1]) + \
+         __builtin_popcountll(tmp[2]) + \
+         __builtin_popcountll(tmp[3]);
+}
+
+template<>
+avx256i* assign_alloc<avx256i>(size_t count) {
+  return (avx256i*) aligned_alloc(32, count * sizeof(avx256i));
+}
+
+
 /*
 template<>
 void print_bitmask<avx256i>(avx256i m) {
