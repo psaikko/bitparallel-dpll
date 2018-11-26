@@ -15,21 +15,21 @@
 #define UNKNOWN -1
 
 #ifndef NDEBUG
-#define DPRINT(...) printf(__VA_ARGS__)
-#define DPRINT_BITMASK(x) print_bitmask(x)
-#define DPRINT_CLAUSE(c, n) print_clause(c, n);
-#define DPRINT_ASSIGNMENT() print_assignment()
+  #define DPRINT(...) printf(__VA_ARGS__)
+  #define DPRINT_BITMASK(x) print_bitmask(x)
+  #define DPRINT_CLAUSE(c, n) print_clause(c, n);
+  #define DPRINT_ASSIGNMENT() print_assignment()
 #else
-#define DPRINT(...) 
-#define DPRINT_BITMASK(x)
-#define DPRINT_CLAUSE(c, n) 
-#define DPRINT_ASSIGNMENT() 
+  #define DPRINT(...) 
+  #define DPRINT_BITMASK(x)
+  #define DPRINT_CLAUSE(c, n) 
+  #define DPRINT_ASSIGNMENT() 
 #endif
 
 typedef int lit;
 typedef unsigned int var;
 
-typedef avx256i assign_t;
+typedef ASSIGN_TYPE assign_t;
 
 inline var VAR(lit l) { return std::abs(l); }
 inline lit POS(lit l) { return std::abs(l); }
@@ -70,13 +70,7 @@ void init_bitmasks() {
   int i = 0;
   
   while (shift > 0) {
-    assign_t t1 = ~m;
-    assert(t1);
-    assign_t t2 = t1 << shift;
-    assert(t2);
-    m = m ^ t2;
-    //m ^= ((~m) << shift);
-    assert(m);
+    m ^= ((~m) << shift);
     assign_bitmasks[i++] = m;
     shift /= 2;
   }
@@ -282,7 +276,7 @@ int propagate() {
     propagate_mask = undef_mask_1 & bitnot(undef_mask_2) & bitnot(clause_sat_mask);
 
     if (propagate_mask) {
-//      DPRINT("propagate clause on %d bits\n", __builtin_popcount(propagate_mask));
+      DPRINT("propagate clause on %d bits\n", __builtin_popcount(propagate_mask));
 
       for (int j = 0; j < clauses_len[i]; ++j) {
         l = clauses[i][j];
