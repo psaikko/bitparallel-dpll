@@ -48,6 +48,9 @@ assign_t all_false = zero<assign_t>();
 assign_t * assign_bitmasks;
 unsigned n_bitmasks;
 
+unsigned long decisions;
+unsigned long bit_decisions;
+
 void init_bitmasks() {
   /*
     bitmask pattern like
@@ -170,10 +173,18 @@ int trail_head;
 int search_depth;
 
 var select_branch_variable() {
-  for (var i = search_depth+1; i <= n_vars; ++i)
-    if (var_undef[i] != all_false)
-      return i;
-  return 0;
+  
+  unsigned max_undef = 0;
+  unsigned max_v = 0;
+  for (var i = 1; i <= n_vars; ++i) {
+    unsigned ct = popcount<assign_t>(var_undef[i]);
+    if (ct > max_undef) {
+      max_undef = ct;
+      max_v = i;
+    }
+  }
+  return max_v;
+  
 }
 
 assign_t sat_bit_position;
@@ -392,6 +403,9 @@ int search() {
 
   assign_t decision_mask = var_undef[branch];
 
+  decisions++;
+  bit_decisions += popcount(decision_mask);
+
   ++search_depth;
   make_assignment(branch, pattern, decision_mask);
 
@@ -422,7 +436,6 @@ void dpll() {
   search_depth = 0;
 
   // init assignment
-
   var_assignment = assign_alloc<assign_t>(n_vars+1);
   var_undef      = assign_alloc<assign_t>(n_vars+1);
 
@@ -440,17 +453,18 @@ void dpll() {
   trail_mask = assign_alloc<assign_t>(n_vars * sizeof(assign_t) * 8);
   trail_val  = assign_alloc<assign_t>(sizeof(assign_t) * n_vars * sizeof(assign_t) * 8);
 
-
   if (!trail_val || !trail_mask || !var_undef || !var_assignment) {
-    printf("adsfasdf\n");
+    printf("failed to allocate memory\n");
     exit(0);
   }
-
 
   trail_depth = (int *) malloc(sizeof(int) * n_vars * sizeof(assign_t) * 8);
   trail_head = -1;
 
   int res = search();
+
+  printf("c decisions     %lu\n", decisions);
+  printf("c bit-decisions %lu\n", bit_decisions);
 
   if (res == SAT) {
     //std::sort(var_assignment+1, var_assignment+n_vars, [](const lit l1, const lit l2){ return var(l1) < var(l2); });

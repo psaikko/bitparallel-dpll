@@ -74,8 +74,7 @@ struct avx256i {
       tmp[1] <<= i;
     }
 
-    val = _mm256_loadu_si256((__m256i *) tmp);
-    return *this;
+    return _mm256_loadu_si256((__m256i *) tmp);
   }
 
   explicit operator bool() const {
@@ -131,7 +130,6 @@ template<>
 avx256i* assign_alloc<avx256i>(size_t count) {
   return (avx256i*) aligned_alloc(32, count * sizeof(avx256i));
 }
-
 
 /*
 template<>
